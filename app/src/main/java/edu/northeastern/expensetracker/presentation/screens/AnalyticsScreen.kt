@@ -10,6 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import edu.northeastern.expensetracker.presentation.components.formatCurrency
 import edu.northeastern.expensetracker.presentation.home.ExpenseViewModel
 
 // A helper to assign stable colors to our categories
@@ -43,7 +44,10 @@ fun AnalyticsScreen(
 ) {
     val state = viewModel.state.value
 
-    // 1. Crunch the numbers: Group by category and sum the amounts
+    // THE UPGRADE: Collect the dynamic symbol from the ViewModel
+    val currencySymbol by viewModel.currencySymbol.collectAsState()
+
+    // Crunch the numbers: Group by category and sum the amounts
     val categoryTotals = state.transactions
         .groupBy { it.categoryId }
         .mapValues { entry -> entry.value.sumOf { it.baseAmount } }
@@ -78,7 +82,7 @@ fun AnalyticsScreen(
                 return@Scaffold
             }
 
-            // 2. The Donut Chart (Canvas)
+            // The Donut Chart (Canvas)
             Box(
                 modifier = Modifier
                     .size(300.dp)
@@ -107,7 +111,8 @@ fun AnalyticsScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Total Spent", style = MaterialTheme.typography.labelLarge)
                     Text(
-                        text = formatCurrency(totalSpend),
+                        // Format with dynamic symbol and no decimals for the big center number
+                        text = "$currencySymbol ${"%.0f".format(totalSpend)}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -116,7 +121,7 @@ fun AnalyticsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. The Legend (List of categories and amounts)
+            // The Legend (List of categories and amounts)
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,7 +155,8 @@ fun AnalyticsScreen(
                         // Percentage and Amount
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = formatCurrency(amount),
+                                // Format with dynamic symbol and exactly 2 decimal places
+                                text = "$currencySymbol ${"%.2f".format(amount)}",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold
                             )

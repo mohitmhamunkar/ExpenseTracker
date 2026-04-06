@@ -22,7 +22,8 @@ import java.util.Locale
 @Composable
 fun TransactionItem(
     transaction: Transaction,
-    homeCurrency: String // <--- THIS IS THE FIX: Added the parameter here!
+    currencySymbol: String,     // <--- ADDED parameter
+    homeCurrencyCode: String    // <--- RENAMED parameter to match code vs symbol
 ) {
     Row(
         modifier = Modifier
@@ -78,13 +79,13 @@ fun TransactionItem(
                     color = MaterialTheme.colorScheme.error
                 )
             } else {
-                // It synced successfully, show the converted Home Currency formatted to 2 decimals
+                // It synced successfully, show the converted Home Currency SYMBOL formatted to 2 decimals
                 Text(
-                    text = "$homeCurrency ${"%.2f".format(transaction.baseAmount)}",
+                    text = "$currencySymbol ${"%.2f".format(transaction.baseAmount)}",
                     style = MaterialTheme.typography.titleMedium
                 )
                 // If it was a foreign transaction, show the original amount underneath
-                if (transaction.originalCurrency != homeCurrency) {
+                if (transaction.originalCurrency != homeCurrencyCode) {
                     Text(
                         text = "${transaction.originalCurrency} ${"%.2f".format(transaction.originalAmount)}",
                         style = MaterialTheme.typography.bodySmall,

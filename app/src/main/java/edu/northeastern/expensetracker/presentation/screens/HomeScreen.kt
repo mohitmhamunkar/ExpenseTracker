@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -33,15 +34,22 @@ fun HomeScreen(
     // 1. Listen to the Transactions List
     val state by viewModel.state.collectAsState()
 
-    // 2. THIS IS THE FIX: Listen to the Dynamic Home Currency from DataStore!
-    val homeCurrency by viewModel.userHomeCurrency.collectAsState()
+    // 2. Listen to the Dynamic Home Currency Code & Symbol from ViewModel!
+    val homeCurrencyCode by viewModel.userHomeCurrency.collectAsState()
+    val currencySymbol by viewModel.currencySymbol.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Expense Tracker") },
+                title = { Text("My Expenses") },
                 actions = {
-                    IconButton(onClick = { onNavigateToSettings() }) {
+                    IconButton(onClick = { navController.navigate(Screen.Analytics.route) }) {
+                        Icon(
+                            imageVector = Icons.Default.PieChart,
+                            contentDescription = "View Analytics"
+                        )
+                    }
+                    IconButton(onClick = { navController.navigate("settings") }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings"
@@ -52,9 +60,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    navController.navigate(Screen.AddTransaction.route)
-                }
+                onClick = { navController.navigate(Screen.AddTransaction.route) }
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Transaction")
             }
@@ -101,7 +107,7 @@ fun HomeScreen(
 
                             SwipeToDismissBox(
                                 state = dismissState,
-                                enableDismissFromStartToEnd = false, // Only allow right-to-left swipe
+                                enableDismissFromStartToEnd = false,
                                 backgroundContent = {
                                     val color by animateColorAsState(
                                         targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
@@ -115,7 +121,7 @@ fun HomeScreen(
                                             .fillMaxSize()
                                             .background(color)
                                             .padding(horizontal = 20.dp),
-                                        contentAlignment = Alignment.CenterEnd // Trash can sits on the right
+                                        contentAlignment = Alignment.CenterEnd
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
@@ -125,10 +131,11 @@ fun HomeScreen(
                                     }
                                 }
                             ) {
-                                // 3. THIS IS THE FIX: Pass the homeCurrency into the item!
+                                // 3. Pass both the Symbol and the Code to the item
                                 TransactionItem(
                                     transaction = transaction,
-                                    homeCurrency = homeCurrency
+                                    currencySymbol = currencySymbol,
+                                    homeCurrencyCode = homeCurrencyCode
                                 )
                             }
                         }

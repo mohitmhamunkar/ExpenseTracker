@@ -16,9 +16,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.util.Currency
 import java.util.UUID
 import javax.inject.Inject
 
@@ -32,12 +34,27 @@ class ExpenseViewModel @Inject constructor(
     private val _state = MutableStateFlow(ExpenseState())
     // This is the public pipeline that the UI watches
     val state: StateFlow<ExpenseState> = _state.asStateFlow()
+
     // The user's anchor currency (can be updated from a Settings screen later)
     val userHomeCurrency = preferencesRepository.homeCurrency.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = "INR"
     )
+
+    // THE UPGRADE: Automatically translates "USD" to "$", "INR" to "₹", etc.
+    val currencySymbol: StateFlow<String> = userHomeCurrency.map { code ->
+        try {
+            Currency.getInstance(code).symbol
+        } catch (e: Exception) {
+            code // Fallback to the text code if the symbol isn't found
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "₹"
+    )
+
     private val eventChannel = Channel<String>()
     val uiEvent = eventChannel.receiveAsFlow()
 
@@ -47,8 +64,6 @@ class ExpenseViewModel @Inject constructor(
     }
 
     private fun getTransactions() {
-        // We use the UseCase like a function!
-        // .onEach means "Every time the database changes, update the UI state"
         useCases.getTransactions().onEach { newTransactions ->
             _state.value = state.value.copy(
                 transactions = newTransactions
@@ -56,7 +71,6 @@ class ExpenseViewModel @Inject constructor(
         }.launchIn(viewModelScope)
     }
 
-    // Replaces your old addTransaction function to accept the raw form data
     fun addTransaction(
         amount: Double,
         selectedCurrency: String,
@@ -69,7 +83,6 @@ class ExpenseViewModel @Inject constructor(
             var finalBaseAmount = amount
             var finalMessage = "SUCCESS"
 
-            // 1. Create a dynamic flag, assuming success by default (e.g., for INR transactions)
             var wasSuccessfullySynced = true
 
             if (selectedCurrency != userHomeCurrency.value) {
@@ -79,10 +92,8 @@ class ExpenseViewModel @Inject constructor(
                 if (conversionRate != null) {
                     finalRate = conversionRate
                     finalBaseAmount = amount * conversionRate
-                    // It worked online! Leave the flag as true.
                 } else {
                     finalMessage = "Offline: Saved using 1:1 rate for $selectedCurrency"
-                    // 2. It failed! Mark it so the Worker can find it later.
                     wasSuccessfullySynced = false
                 }
             }
@@ -96,8 +107,6 @@ class ExpenseViewModel @Inject constructor(
                 baseAmount = finalBaseAmount,
                 date = date,
                 notes = notes.trim(),
-
-                // 3. Pass the dynamic flag to the database
                 isSynced = wasSuccessfullySynced
             )
 
@@ -108,7 +117,6 @@ class ExpenseViewModel @Inject constructor(
 
     fun deleteTransaction(transaction: edu.northeastern.expensetracker.domain.model.Transaction) {
         viewModelScope.launch {
-            // Replace 'dao' with whatever you named your Room DAO variable
             useCases.deleteTransaction(transaction)
         }
     }
