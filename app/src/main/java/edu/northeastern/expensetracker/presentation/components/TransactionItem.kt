@@ -19,13 +19,15 @@ import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
 
-
 @Composable
-fun TransactionItem(transaction: Transaction) {
+fun TransactionItem(
+    transaction: Transaction,
+    homeCurrency: String // <--- THIS IS THE FIX: Added the parameter here!
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background) // <--- THIS IS THE FIX
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -62,24 +64,33 @@ fun TransactionItem(transaction: Transaction) {
             }
         }
 
-        // 3. The Amounts (The Fix!)
+        // 3. The Amounts
         Column(horizontalAlignment = Alignment.End) {
-            // ALWAYS show the converted Home Currency (INR) as the big primary text
-            Text(
-                text = "₹ ${String.format("%.2f", transaction.baseAmount)}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // If they bought it in USD/EUR, show the original amount underneath!
-            if (transaction.originalCurrency != "INR") {
+            if (!transaction.isSynced) {
+                // If offline, show the original amount formatted to 2 decimals
                 Text(
-                    // USING THE HELPER FUNCTION HERE:
-                    text = "${getCurrencySymbol(transaction.originalCurrency)} ${String.format("%.2f", transaction.originalAmount)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "${transaction.originalCurrency} ${"%.2f".format(transaction.originalAmount)}",
+                    style = MaterialTheme.typography.titleMedium
                 )
+                Text(
+                    text = "Pending Sync...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else {
+                // It synced successfully, show the converted Home Currency formatted to 2 decimals
+                Text(
+                    text = "$homeCurrency ${"%.2f".format(transaction.baseAmount)}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                // If it was a foreign transaction, show the original amount underneath
+                if (transaction.originalCurrency != homeCurrency) {
+                    Text(
+                        text = "${transaction.originalCurrency} ${"%.2f".format(transaction.originalAmount)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -96,19 +107,17 @@ fun getCategoryIcon(category: String): ImageVector {
     }
 }
 
-// Add this to the bottom of the file
+// Helper functions for later UI polish
 fun formatCurrency(amount: Double): String {
-    // Sets the standard locale formatting for INR
     val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     format.maximumFractionDigits = 2
     return format.format(amount)
 }
 
-// Safely converts "USD" to "$", "EUR" to "€", etc.
 fun getCurrencySymbol(currencyCode: String): String {
     return try {
         Currency.getInstance(currencyCode).symbol
     } catch (e: Exception) {
-        currencyCode // If it fails for some reason, just fall back to "USD"
+        currencyCode
     }
 }

@@ -106,4 +106,7 @@ dependencies {
     // Hilt Worker Extension (Allows us to inject our Repository into the Worker)
     implementation("androidx.hilt:hilt-work:1.2.0")
     ksp("androidx.hilt:hilt-compiler:1.2.0")
+
+    // DataStore for saving settings
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }

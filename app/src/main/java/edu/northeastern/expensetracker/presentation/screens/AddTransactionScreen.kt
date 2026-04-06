@@ -14,7 +14,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import kotlinx.coroutines.flow.collectLatest
 import edu.northeastern.expensetracker.presentation.home.ExpenseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,17 +25,25 @@ fun AddTransactionScreen(
     var amountInput by remember { mutableStateOf("") }
     var noteInput by remember { mutableStateOf("") }
 
-    // 1. Currency Dropdown State
-    val currencies = listOf("INR", "USD", "EUR", "GBP")
-    var expandedCurrency by remember { mutableStateOf(false) }
-    var selectedCurrency by remember { mutableStateOf(currencies[0]) } // Defaults to INR
+    // --- THE FIX: DYNAMIC CURRENCY STATE ---
+    // 1. Listen to the true home currency from the ViewModel (DataStore)
+    val homeCurrency by viewModel.userHomeCurrency.collectAsState()
 
-    // 2. Category Dropdown State (Matching your icon names)
+    // 2. Dynamically sort the list so their Home Currency is always the first choice!
+    val allCurrencies = listOf("INR", "USD", "EUR", "GBP", "JPY", "CAD")
+    val displayCurrencies = remember(homeCurrency) {
+        listOf(homeCurrency) + allCurrencies.filter { it != homeCurrency }
+    }
+
+    // 3. Set the default selection to whatever DataStore says it should be
+    var expandedCurrency by remember { mutableStateOf(false) }
+    var selectedCurrency by remember(homeCurrency) { mutableStateOf(homeCurrency) }
+
+    // 4. Category Dropdown State (Matching your icon names)
     val categories = listOf("Food", "Transport", "Bills", "Entertainment", "Shopping")
     var expandedCategory by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf(categories[0]) }
 
-    // --- ADD THIS BLOCK ---
     val context = LocalContext.current.applicationContext
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -91,7 +98,8 @@ fun AddTransactionScreen(
                         expanded = expandedCurrency,
                         onDismissRequest = { expandedCurrency = false }
                     ) {
-                        currencies.forEach { currency ->
+                        // USE THE DYNAMIC LIST HERE
+                        displayCurrencies.forEach { currency ->
                             DropdownMenuItem(
                                 text = { Text(currency) },
                                 onClick = {
@@ -153,12 +161,10 @@ fun AddTransactionScreen(
 
             Spacer(modifier = Modifier.weight(1f)) // Pushes the button to the bottom
 
-            // THE FIX: The Save Button now calls the new ViewModel logic!
             Button(
                 onClick = {
                     val amount = amountInput.toDoubleOrNull()
                     if (amount != null && amount > 0) {
-                        // Pass the raw data to the ViewModel, let it do the math and API calls
                         viewModel.addTransaction(
                             amount = amount,
                             selectedCurrency = selectedCurrency,

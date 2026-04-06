@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -27,21 +27,27 @@ import edu.northeastern.expensetracker.presentation.navigation.Screen
 @Composable
 fun HomeScreen(
     navController: NavController,
-    viewModel: ExpenseViewModel = hiltViewModel()
+    viewModel: ExpenseViewModel = hiltViewModel(),
+    onNavigateToSettings: () -> Unit
 ) {
-    // This connects our Compose UI to the Flow in the ViewModel
+    // 1. Listen to the Transactions List
     val state by viewModel.state.collectAsState()
+
+    // 2. THIS IS THE FIX: Listen to the Dynamic Home Currency from DataStore!
+    val homeCurrency by viewModel.userHomeCurrency.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Expense Tracker") },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.Analytics.route) }) {
-                        Icon(Icons.Default.PieChart, contentDescription = "Analytics")
+                    IconButton(onClick = { onNavigateToSettings() }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings"
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors()
+                }
             )
         },
         floatingActionButton = {
@@ -69,7 +75,7 @@ fun HomeScreen(
                     contentPadding = PaddingValues(bottom = 80.dp) // Leave space for FAB
                 ) {
                     groupedTransactions.forEach { (date, transactionsForDate) ->
-                        // 1. The Date Header
+                        // The Date Header
                         item {
                             Text(
                                 text = date.toString(),
@@ -79,8 +85,7 @@ fun HomeScreen(
                             )
                         }
 
-                        // 2. The Transactions (NOW WRAPPED IN SWIPE-TO-DISMISS)
-                        // Added 'key = { it.id }' so Compose doesn't get confused when animating the deletion
+                        // The Transactions (WITH SWIPE-TO-DISMISS)
                         items(transactionsForDate, key = { it.id }) { transaction ->
 
                             val dismissState = rememberSwipeToDismissBoxState(
@@ -120,8 +125,11 @@ fun HomeScreen(
                                     }
                                 }
                             ) {
-                                // Your actual visual card sits on top of the swipe background!
-                                TransactionItem(transaction = transaction)
+                                // 3. THIS IS THE FIX: Pass the homeCurrency into the item!
+                                TransactionItem(
+                                    transaction = transaction,
+                                    homeCurrency = homeCurrency
+                                )
                             }
                         }
                     }

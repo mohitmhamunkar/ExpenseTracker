@@ -17,6 +17,7 @@ import edu.northeastern.expensetracker.presentation.navigation.Screen
 import edu.northeastern.expensetracker.presentation.screens.AddTransactionScreen
 import edu.northeastern.expensetracker.presentation.screens.HomeScreen
 import edu.northeastern.expensetracker.presentation.screens.AnalyticsScreen
+import edu.northeastern.expensetracker.presentation.settings.SettingsScreen
 import edu.northeastern.expensetracker.ui.theme.ExpenseTrackerTheme
 
 @AndroidEntryPoint
@@ -40,7 +41,11 @@ class MainActivity : ComponentActivity() {
                     ) {
                         // 2. Pass the shared instance to every screen
                         composable(route = Screen.Home.route) {
-                            HomeScreen(navController = navController, viewModel = sharedViewModel)
+                            HomeScreen(
+                                navController = navController,
+                                viewModel = sharedViewModel,
+                                onNavigateToSettings = { navController.navigate("settings") }
+                            )
                         }
 
                         composable(route = Screen.AddTransaction.route) {
@@ -55,6 +60,10 @@ class MainActivity : ComponentActivity() {
                                 navController = navController,
                                 viewModel = sharedViewModel
                             )
+                        }
+
+                        composable("settings") {
+                            SettingsScreen()
                         }
                     }
                 }

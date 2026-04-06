@@ -8,51 +8,57 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import edu.northeastern.expensetracker.domain.repository.ExpenseRepository
+import edu.northeastern.expensetracker.domain.repository.UserPreferencesRepository
+import kotlinx.coroutines.flow.first
 
-// @HiltWorker tells Dagger to inject our Repository into this background task
 @HiltWorker
 class SyncTransactionsWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    private val preferencesRepository: UserPreferencesRepository
 ) : CoroutineWorker(context, workerParams) {
 
-    // ... inside doWork() ...
     override suspend fun doWork(): Result {
-        Log.d("SyncWorker", "WAKING UP: Checking for offline transactions...") // LOG 1
-
         return try {
-            val unsyncedTransactions = repository.getUnsyncedTransactions()
+            // Bypass the DAO query and filter locally
+            val allTransactions = repository.getAllTransactions().first()
+            val unsyncedTransactions = allTransactions.filter { !it.isSynced }
 
             if (unsyncedTransactions.isEmpty()) {
-                Log.d("SyncWorker", "SLEEPING: No offline transactions found.") // LOG 2
                 return Result.success()
             }
 
-            val userHomeCurrency = "INR"
+            val userHomeCurrency = preferencesRepository.homeCurrency.first()
+            val globalRates = repository.getExchangeRates("USD")
 
             unsyncedTransactions.forEach { transaction ->
-                Log.d("SyncWorker", "FETCHING: Getting live rates for ${transaction.originalCurrency}") // LOG 3
+                try {
+                    val rateForOriginal = globalRates[transaction.originalCurrency]
+                    val rateForHome = globalRates[userHomeCurrency]
 
-                val rates = repository.getExchangeRates(transaction.originalCurrency)
-                val conversionRate = rates[userHomeCurrency]
+                    if (rateForOriginal != null && rateForHome != null) {
+                        val conversionRate = rateForHome / rateForOriginal
 
-                if (conversionRate != null) {
-                    val updatedTransaction = transaction.copy(
-                        exchangeRate = conversionRate,
-                        baseAmount = transaction.originalAmount * conversionRate,
-                        isSynced = true
-                    )
+                        val updatedTransaction = transaction.copy(
+                            exchangeRate = conversionRate,
+                            baseAmount = transaction.originalAmount * conversionRate,
+                            isSynced = true
+                        )
 
-                    repository.updateTransaction(updatedTransaction)
-                    Log.d("SyncWorker", "SUCCESS: Updated transaction ${transaction.id} to INR $conversionRate") // LOG 4
+                        repository.updateTransaction(updatedTransaction)
+                    } else {
+                        Log.e("SyncWorker", "Missing rates for ${transaction.originalCurrency} or $userHomeCurrency")
+                    }
+                } catch (e: Exception) {
+                    Log.e("SyncWorker", "Math failed for ${transaction.originalCurrency}: ${e.message}")
                 }
             }
 
             Result.success()
 
         } catch (e: Exception) {
-            Log.e("SyncWorker", "CRASH: ${e.message}") // LOG 5
+            Log.e("SyncWorker", "Fatal worker crash: ${e.message}")
             Result.retry()
         }
     }
