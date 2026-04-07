@@ -1,20 +1,37 @@
 package edu.northeastern.expensetracker.presentation.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import edu.northeastern.expensetracker.presentation.home.ExpenseViewModel
+// Ensure you import your icon helper if it's in another file!
+import edu.northeastern.expensetracker.presentation.components.getCategoryIcon
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Currency
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,24 +42,25 @@ fun AddTransactionScreen(
     var amountInput by remember { mutableStateOf("") }
     var noteInput by remember { mutableStateOf("") }
 
-    // --- THE FIX: DYNAMIC CURRENCY STATE ---
-    // 1. Listen to the true home currency from the ViewModel (DataStore)
+    // Currency State
     val homeCurrency by viewModel.userHomeCurrency.collectAsState()
-
-    // 2. Dynamically sort the list so their Home Currency is always the first choice!
     val allCurrencies = listOf("INR", "USD", "EUR", "GBP", "JPY", "CAD")
     val displayCurrencies = remember(homeCurrency) {
         listOf(homeCurrency) + allCurrencies.filter { it != homeCurrency }
     }
-
-    // 3. Set the default selection to whatever DataStore says it should be
     var expandedCurrency by remember { mutableStateOf(false) }
     var selectedCurrency by remember(homeCurrency) { mutableStateOf(homeCurrency) }
 
-    // 4. Category Dropdown State (Matching your icon names)
-    val categories = listOf("Food", "Transport", "Bills", "Entertainment", "Shopping")
-    var expandedCategory by remember { mutableStateOf(false) }
+    // Category State
+    val categories = listOf("Food", "Transport", "Bills", "Entertainment", "Shopping", "Other")
     var selectedCategory by remember { mutableStateOf(categories[0]) }
+
+    // Date Picker State
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = System.currentTimeMillis()
+    )
 
     val context = LocalContext.current.applicationContext
     LaunchedEffect(Unit) {
@@ -70,27 +88,25 @@ fun AddTransactionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
-            // CURRENCY & AMOUNT ROW
-            Row(
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1. THE BIG AMOUNT INPUT
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Currency Selector
+                // Currency Dropdown directly above the amount
                 ExposedDropdownMenuBox(
                     expanded = expandedCurrency,
-                    onExpandedChange = { expandedCurrency = !expandedCurrency },
-                    modifier = Modifier.weight(1f) // Takes up 1/3 of the row
+                    onExpandedChange = { expandedCurrency = !expandedCurrency }
                 ) {
-                    OutlinedTextField(
-                        value = selectedCurrency,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Currency") },
+                    AssistChip(
+                        onClick = { expandedCurrency = true },
+                        label = { Text(selectedCurrency, fontWeight = FontWeight.Bold) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCurrency) },
                         modifier = Modifier.menuAnchor()
                     )
@@ -98,7 +114,6 @@ fun AddTransactionScreen(
                         expanded = expandedCurrency,
                         onDismissRequest = { expandedCurrency = false }
                     ) {
-                        // USE THE DYNAMIC LIST HERE
                         displayCurrencies.forEach { currency ->
                             DropdownMenuItem(
                                 text = { Text(currency) },
@@ -111,56 +126,127 @@ fun AddTransactionScreen(
                     }
                 }
 
-                // Amount Input
-                OutlinedTextField(
+                TextField(
                     value = amountInput,
                     onValueChange = { amountInput = it },
-                    label = { Text("Amount") },
+                    // THE FIX: Calculate and display the symbol right here
+                    prefix = {
+                        val symbol = try {
+                            Currency.getInstance(selectedCurrency).symbol
+                        } catch (e: Exception) {
+                            selectedCurrency // Fallback to "USD" etc. if symbol fails
+                        }
+
+                        Text(
+                            text = symbol,
+                            fontSize = 56.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    placeholder = {
+                        Text("0.00", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(2f) // Takes up 2/3 of the row
+                    textStyle = TextStyle(
+                        fontSize = 56.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    ),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            // CATEGORY SELECTOR
-            ExposedDropdownMenuBox(
-                expanded = expandedCategory,
-                onExpandedChange = { expandedCategory = !expandedCategory },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = selectedCategory,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Category") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCategory) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
+            Divider(color = MaterialTheme.colorScheme.surfaceVariant)
+
+            // 2. VISUAL CATEGORY CHIPS
+            Column {
+                Text(
+                    text = "Category",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-                ExposedDropdownMenu(
-                    expanded = expandedCategory,
-                    onDismissRequest = { expandedCategory = false }
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    categories.forEach { category ->
-                        DropdownMenuItem(
-                            text = { Text(category) },
-                            onClick = {
-                                selectedCategory = category
-                                expandedCategory = false
+                    items(categories) { category ->
+                        val isSelected = selectedCategory == category
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier
+                                .clickable { selectedCategory = category }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = getCategoryIcon(category),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = category,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
 
-            // NOTES INPUT
-            OutlinedTextField(
-                value = noteInput,
-                onValueChange = { noteInput = it },
-                label = { Text("Notes (Optional)") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            // 3. DATE & NOTES ROW
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Date Selector
+                OutlinedTextField(
+                    value = selectedDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Date") },
+                    leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = "Select Date") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showDatePicker = true }, // Opens the dialog
+                    enabled = false, // Disables typing, forces them to click
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
 
-            Spacer(modifier = Modifier.weight(1f)) // Pushes the button to the bottom
+                // Notes Input
+                OutlinedTextField(
+                    value = noteInput,
+                    onValueChange = { noteInput = it },
+                    label = { Text("Notes") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
+            Spacer(modifier = Modifier.weight(1f))
+
+            // SAVE BUTTON
             Button(
                 onClick = {
                     val amount = amountInput.toDoubleOrNull()
@@ -169,16 +255,47 @@ fun AddTransactionScreen(
                             amount = amount,
                             selectedCurrency = selectedCurrency,
                             categoryId = selectedCategory,
-                            notes = noteInput
+                            notes = noteInput,
+                            date = selectedDate // Passing the selected date to your ViewModel!
                         )
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large
             ) {
-                Text("Save Expense")
+                Text("Save Expense", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
+        }
+    }
+
+    // --- DATE PICKER DIALOG ---
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            // Convert milliseconds to LocalDate
+                            selectedDate = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

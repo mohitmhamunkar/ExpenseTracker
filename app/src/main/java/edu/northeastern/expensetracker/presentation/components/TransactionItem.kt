@@ -104,6 +104,7 @@ fun getCategoryIcon(category: String): ImageVector {
         "Transport" -> Icons.Default.Commute
         "Bills" -> Icons.Default.Receipt
         "Entertainment" -> Icons.Default.Movie
+        "Shopping" -> Icons.Default.ShoppingBasket
         else -> Icons.AutoMirrored.Filled.List
     }
 }
