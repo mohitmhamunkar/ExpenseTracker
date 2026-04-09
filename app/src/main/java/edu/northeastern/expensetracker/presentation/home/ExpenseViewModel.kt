@@ -120,4 +120,22 @@ class ExpenseViewModel @Inject constructor(
             useCases.deleteTransaction(transaction)
         }
     }
+
+    // --- MONTH SELECTOR STATE ---
+    // Start by looking at the current month (e.g., April 2026)
+    private val _currentMonth = MutableStateFlow(LocalDate.now().withDayOfMonth(1))
+    val currentMonth: StateFlow<LocalDate> = _currentMonth.asStateFlow()
+
+    fun changeMonth(offsetMonths: Long) {
+        _currentMonth.value = _currentMonth.value.plusMonths(offsetMonths)
+    }
+
+    // --- ADVANCED FILTER STATE ---
+    // Null means "Show All Categories". Otherwise, it holds the category name (e.g., "Food")
+    private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
+    val selectedCategoryFilter: StateFlow<String?> = _selectedCategoryFilter.asStateFlow()
+
+    fun setCategoryFilter(category: String?) {
+        _selectedCategoryFilter.value = category
+    }
 }
